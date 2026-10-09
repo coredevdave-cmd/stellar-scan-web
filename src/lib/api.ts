@@ -2,10 +2,29 @@ import { API_URL } from './constants';
 import type { Contract } from '@/types/contract';
 import type { Paginated } from '@/types/api';
 
-async function get<T>(path: string): Promise<T> {
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number,
+  ) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
+export async function get<T>(path: string): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, { next: { revalidate: 30 } });
-  if (!res.ok) throw new Error(`API ${res.status}`);
-  return res.json() as Promise<T>;
+  if (!res.ok) {
+    let detail = `API request failed (${res.status})`;
+    try {
+      const body = (await res.json()) as { message?: string };
+      if (body.message) detail = body.message;
+    } catch {
+      // Preserve the HTTP status when the server returned a non-JSON error.
+    }
+    throw new ApiError(detail, res.status);
+  }
+  return (await res.json()) as T;
 }
 
 export const api = {
